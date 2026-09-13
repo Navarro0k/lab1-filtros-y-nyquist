@@ -65,7 +65,7 @@ class LabController:
         if self._ultima_original is None:
             raise RuntimeError("Primero hay que grabar una señal (botón 'Grabar').")
 
-        cumple_nyquist = self._analyzer.check(self._ultima_original, new_fs, f_max)
+        cumple_nyquist = self._analyzer.check(new_fs, f_max) 
         self._ultima_resampleada = self._analyzer.resample(self._ultima_original, self._fs, new_fs)
         
         self._ultima_fs_resampleada = new_fs
