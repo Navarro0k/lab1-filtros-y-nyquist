@@ -6,7 +6,7 @@ class MovingAverageFilter:
             raise ValueError("M debe ser un entero positivo (M >= 1).")
         self.M = M
 
-    def apply(self, x: np.ndarray, fs: int = None) -> np.ndarray:
+    def apply(self, x: np.ndarray) -> np.ndarray:
         x = np.asarray(x).flatten().astype(float)
         N = x.size
 
@@ -16,7 +16,7 @@ class MovingAverageFilter:
         if self.M >= N:
             raise ValueError(f"M ({self.M}) debe ser menor que N ({N}).")
 
-        y = np.zeros(N) # Inicializar un arreglo del tamaño correcto en lugar de []
+        y = np.zeros(N) 
 
         for n in range(N):
             suma = 0.0

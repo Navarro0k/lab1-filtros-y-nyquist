@@ -1,1 +1,3 @@
 *.pyc
+*.pyc
+/core/__pycache__

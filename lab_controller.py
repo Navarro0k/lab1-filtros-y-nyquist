@@ -4,108 +4,63 @@ from audio_io import AudioIO
 from plotter import SignalPlotter
 
 class LabController:
-    """Orquesta el flujo completo del laboratorio."""
+    # Constantes para la GUI
+    M_POR_DEFECTO, FS_POR_DEFECTO, DURACION_POR_DEFECTO = 5, 44100, 5.0
+    F_MAX_POR_DEFECTO, NEW_FS_POR_DEFECTO = 4000.0, 8000
+    TIPO_MEDIA_MOVIL, TIPO_NYQUIST = "Media Movil", "Nyquist (remuestreo)"
 
-    M_POR_DEFECTO = 5
-    FS_POR_DEFECTO = 44100
-    DURACION_POR_DEFECTO = 5.0
-    F_MAX_POR_DEFECTO = 4000.0
-    NEW_FS_POR_DEFECTO = 8000
+    def __init__(self):
+        self.io = AudioIO()
+        self.filtro = MovingAverageFilter()
+        self.analyzer = NyquistAnalyzer()
+        self.plotter = SignalPlotter()
 
-    TIPO_MEDIA_MOVIL = "media_movil"
-    TIPO_NYQUIST = "nyquist"
+        self.fs = self.FS_POR_DEFECTO
+        self.f_max = self.F_MAX_POR_DEFECTO
+        self.new_fs = self.NEW_FS_POR_DEFECTO
 
-    def __init__(self, io: AudioIO = None, filtro: MovingAverageFilter = None,
-                 analyzer: NyquistAnalyzer = None, plotter: SignalPlotter = None):
-        self._io = io or AudioIO()
-        self._filtro = filtro or MovingAverageFilter(M=self.M_POR_DEFECTO)
-        self._analyzer = analyzer or NyquistAnalyzer()
-        self._plotter = plotter or SignalPlotter()
+        # Señales
+        self.original = self.filtrada = self.resampleada = None
 
-        self._fs = self.FS_POR_DEFECTO
-        self._duration = self.DURACION_POR_DEFECTO
+        self.hay_original = False
+        self.hay_filtrada_media_movil = False
+        self.hay_resampleada = False
 
-        self._ultima_original = None
-        self._ultima_filtrada_mm = None
-        self._ultima_resampleada = None
-        self._ultima_fs_resampleada = None
-        self._ultimo_cumple_nyquist = None
-
-    def configurar(self, M: int = None, fs: int = None, duration: float = None) -> None:
-        if M is not None:
-            self._filtro.M = M
-        if fs is not None:
-            self._fs = fs
-        if duration is not None:
-            self._duration = duration
-
-    def grabar(self) -> bool:
-        """
-        Graba la señal original. 
-        Retorna False siempre, ya que se eliminó el modo simulado.
-        """
-        self._ultima_original = self._io.record(self._duration, self._fs)
-
-        # Se invalidan los análisis previos porque hay una nueva grabación
-        self._ultima_filtrada_mm = None
-        self._ultima_resampleada = None
-        self._ultima_fs_resampleada = None
-        self._ultimo_cumple_nyquist = None
-
-        return False  # Ya no existe self._io.ultimo_modo_simulado
-
-    def analizar_media_movil(self):
-        if self._ultima_original is None:
-            raise RuntimeError("Primero hay que grabar una señal (botón 'Grabar').")
-
-        self._ultima_filtrada_mm = self._filtro.apply(self._ultima_original, self._fs)
-        return self._plotter.crear_figura_comparacion(self._ultima_original, self._ultima_filtrada_mm, self._fs)
-
-    def analizar_nyquist(self, f_max: float, new_fs: int):
-        if self._ultima_original is None:
-            raise RuntimeError("Primero hay que grabar una señal (botón 'Grabar').")
-
-        cumple_nyquist = self._analyzer.check(new_fs, f_max) 
-        self._ultima_resampleada = self._analyzer.resample(self._ultima_original, self._fs, new_fs)
+    def grabar(self, duration: float) -> bool:
+        self.original = self.io.record(duration, self.fs)
+        self.filtrada = self.resampleada = None
         
-        self._ultima_fs_resampleada = new_fs
-        self._ultimo_cumple_nyquist = cumple_nyquist
+        self.hay_original = True
+        self.hay_filtrada_media_movil = self.hay_resampleada = False
+        return False 
 
-        fig = self._plotter.crear_figura_espectro_comparacion(
-            self._ultima_original, self._fs,
-            self._ultima_resampleada, new_fs,
-            cumple_nyquist=cumple_nyquist,
-        )
-        return fig, cumple_nyquist
+    def analizar(self, tipo: str, param: int):
+        if not self.hay_original:
+            raise RuntimeError("Primero graba una señal.")
 
-    def reproducir_original(self) -> None:
-        if self._ultima_original is None:
-            raise RuntimeError("Primero hay que grabar una señal.")
-        self._io.play(self._ultima_original, self._fs)
-
-    def reproducir_filtrado(self, tipo: str) -> None:
         if tipo == self.TIPO_MEDIA_MOVIL:
-            if self._ultima_filtrada_mm is None:
-                raise RuntimeError("No hay señal filtrada con media móvil todavía.")
-            self._io.play(self._ultima_filtrada_mm, self._fs)
-
+            self.filtro.M = param
+            self.filtrada = self.filtro.apply(self.original)
+            self.hay_filtrada_media_movil = True
+            return self.plotter.crear_figura_comparacion(self.original, self.filtrada, self.fs)
+            
         elif tipo == self.TIPO_NYQUIST:
-            if self._ultima_resampleada is None:
-                raise RuntimeError("No hay señal remuestreada todavía.")
-            self._io.play(self._ultima_resampleada, self._ultima_fs_resampleada)
+            self.new_fs = param
+            cumple = self.analyzer.check(self.new_fs, self.f_max)
+            self.resampleada = self.analyzer.resample(self.original, self.fs, self.new_fs)
+            self.hay_resampleada = True
+            
+            fig = self.plotter.crear_figura_espectro_comparacion(
+                self.original, self.fs, self.resampleada, self.new_fs, cumple_nyquist=cumple
+            )
+            return fig, cumple
 
-        else:
-            raise ValueError(f"Tipo de filtro desconocido: {tipo!r}")
+    def reproducir_original(self):
+        if self.hay_original:
+            self.io.play(self.original, self.fs)
 
-    @property
-    def M(self) -> int: return self._filtro.M
-    @property
-    def fs(self) -> int: return self._fs
-    @property
-    def duration(self) -> float: return self._duration
-    @property
-    def hay_original(self) -> bool: return self._ultima_original is not None
-    @property
-    def hay_filtrada_media_movil(self) -> bool: return self._ultima_filtrada_mm is not None
-    @property
-    def hay_resampleada(self) -> bool: return self._ultima_resampleada is not None
+    def reproducir_filtrado(self, tipo: str):
+        if tipo == self.TIPO_MEDIA_MOVIL and self.hay_filtrada_media_movil:
+            self.io.play(self.filtrada, self.fs)
+        elif tipo == self.TIPO_NYQUIST and self.hay_resampleada:
+            self.io.play(self.resampleada, self.new_fs)
