@@ -1,40 +1,25 @@
-"""
-plotter.py
-
-Encapsula las visualizaciones del laboratorio: comparacion de senales
-en el tiempo (original vs. filtrada) y espectro de frecuencia.
-
-Cada grafica se construye primero como un objeto matplotlib.figure.Figure
-(metodos crear_*), lo que permite:
-  - mostrarla en una ventana aparte (modo consola / script), o
-  - incrustarla dentro de un widget de una interfaz grafica (Tkinter),
-sin duplicar la logica de dibujo.
-"""
-
 import numpy as np
-import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-
 class SignalPlotter:
-    """
-    Genera las graficas requeridas por el laboratorio usando matplotlib.
-    """
+    COLOR_ORIG = '#90A4AE'
+    COLOR_FILT = '#D84315'
+    COLOR_ESPEC = '#1565C0'
+    COLOR_FILL = '#BBDEFB'
 
-    # ------------------------------------------------------------------
-    # Construccion de figuras (reutilizables por consola o por GUI)
-    # ------------------------------------------------------------------
-    def crear_figura_comparacion(self, orig: np.ndarray, filt: np.ndarray,
-                                  fs: int = None) -> Figure:
-        """
-        Construye (sin mostrar) la figura de comparacion original vs.
-        filtrada.
+    def _aplicar_estilo(self, ax, titulo, xlabel, ylabel):
+        ax.set_title(titulo, fontsize=12, fontweight='bold', pad=10)
+        ax.set_xlabel(xlabel, fontsize=10)
+        ax.set_ylabel(ylabel, fontsize=10)
+        ax.grid(True, color='#E0E0E0', linestyle='--', linewidth=0.7, alpha=0.8)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_color('#78909C')
+        ax.spines['bottom'].set_color('#78909C')
+        ax.tick_params(colors='#455A64', labelsize=9)
 
-        Retorna
-        -------
-        fig : matplotlib.figure.Figure
-        """
+    def crear_figura_comparacion(self, orig: np.ndarray, filt: np.ndarray, fs: int = None) -> Figure:
         orig = np.asarray(orig).flatten()
         filt = np.asarray(filt).flatten()
 
@@ -45,184 +30,78 @@ class SignalPlotter:
         else:
             t_orig = np.arange(len(orig))
             t_filt = np.arange(len(filt))
-            xlabel = "Muestra"
+            xlabel = "Muestra [n]"
 
-        fig = Figure(figsize=(8, 4), dpi=100)
+        fig = Figure(figsize=(10, 5), dpi=120)
         ax = fig.add_subplot(111)
-        ax.plot(t_orig, orig, label="Original", alpha=0.7)
-        ax.plot(t_filt, filt, label="Filtrada (promedio movil)", alpha=0.9)
-        ax.set_title("Comparacion: senal original vs. filtrada")
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel("Amplitud")
-        ax.legend()
-        fig.tight_layout()
-        return fig
-
-    def crear_figura_espectro(self, datos: np.ndarray, fs: int) -> Figure:
-        """
-        Construye (sin mostrar) la figura del espectro de magnitud (FFT).
-
-        Retorna
-        -------
-        fig : matplotlib.figure.Figure
-        """
-        datos = np.asarray(datos).flatten()
-        n = len(datos)
-
-        fig = Figure(figsize=(8, 4), dpi=100)
-        ax = fig.add_subplot(111)
-
-        if n == 0:
-            ax.set_title("Espectro de magnitud (senal vacia)")
-            fig.tight_layout()
-            return fig
-
-        espectro = np.fft.rfft(datos)
-        frecuencias = np.fft.rfftfreq(n, d=1.0 / fs)
-        magnitud = np.abs(espectro) / n
-
-        ax.plot(frecuencias, magnitud)
-        ax.set_title(f"Espectro de magnitud (fs = {fs} Hz)")
-        ax.set_xlabel("Frecuencia [Hz]")
-        ax.set_ylabel("Magnitud")
+        
+        ax.plot(t_orig, orig, color=self.COLOR_ORIG, linewidth=1.2, label="Señal Original", zorder=1)
+        ax.plot(t_filt, filt, color=self.COLOR_FILT, linewidth=2.0, label="Filtrada (Promedio Móvil)", zorder=2)
+        
+        self._aplicar_estilo(ax, "Comparación Temporal: Original vs. Filtrada", xlabel, "Amplitud")
+        ax.legend(frameon=True, shadow=True, fancybox=True, fontsize=10, loc='upper right')
         fig.tight_layout()
         return fig
 
     def crear_figura_espectro_comparacion(self, orig: np.ndarray, fs_orig: int,
-                                           resampleada: np.ndarray, fs_new: int,
-                                           cumple_nyquist: bool = None) -> Figure:
-        """
-        Construye una figura con dos subplots: el espectro de la senal
-        original (a fs_orig) y el espectro de la senal remuestreada
-        (a fs_new). Permite comparar visualmente el efecto de
-        muestrear por encima o por debajo del criterio de Nyquist.
-
-        Parametros
-        ----------
-        orig : np.ndarray
-            Senal original.
-        fs_orig : int
-            Frecuencia de muestreo original en Hz.
-        resampleada : np.ndarray
-            Senal ya remuestreada.
-        fs_new : int
-            Nueva frecuencia de muestreo en Hz.
-        cumple_nyquist : bool, opcional
-            Resultado de NyquistAnalyzer.check(), usado solo para
-            anotar el titulo de la figura.
-
-        Retorna
-        -------
-        fig : matplotlib.figure.Figure
-        """
-        fig = Figure(figsize=(8, 6), dpi=100)
+                                          resampleada: np.ndarray, fs_new: int,
+                                          cumple_nyquist: bool = None) -> Figure:
+        fig = Figure(figsize=(10, 7), dpi=120)
 
         ax1 = fig.add_subplot(211)
-        self._dibujar_espectro(ax1, orig, fs_orig, f"Espectro original (fs = {fs_orig} Hz)")
+        self._dibujar_espectro(ax1, orig, fs_orig, f"Espectro Original (fs = {fs_orig} Hz)")
 
         ax2 = fig.add_subplot(212)
-        titulo_2 = f"Espectro remuestreado (fs = {fs_new} Hz)"
+        titulo_2 = f"Espectro Remuestreado (fs = {fs_new} Hz)"
         if cumple_nyquist is not None:
-            titulo_2 += "  -  Nyquist: " + ("CUMPLE" if cumple_nyquist else "NO CUMPLE (aliasing)")
+            estado = "CUMPLE" if cumple_nyquist else "NO CUMPLE (Aliasing)"
+            titulo_2 += f"  |  Nyquist: {estado}"
+            
         self._dibujar_espectro(ax2, resampleada, fs_new, titulo_2)
 
-        fig.tight_layout()
+        fig.tight_layout(pad=2.0)
         return fig
 
-    @staticmethod
-    def _dibujar_espectro(ax, datos: np.ndarray, fs: int, titulo: str) -> None:
+    def _dibujar_espectro(self, ax, datos: np.ndarray, fs: int, titulo: str) -> None:
         datos = np.asarray(datos).flatten()
         n = len(datos)
         if n == 0:
-            ax.set_title(titulo + " (senal vacia)")
+            ax.set_title(titulo + " (señal vacía)")
             return
+            
         espectro = np.fft.rfft(datos)
         frecuencias = np.fft.rfftfreq(n, d=1.0 / fs)
         magnitud = np.abs(espectro) / n
-        ax.plot(frecuencias, magnitud)
-        ax.set_title(titulo)
-        ax.set_xlabel("Frecuencia [Hz]")
-        ax.set_ylabel("Magnitud")
 
-    # ------------------------------------------------------------------
-    # Interfaz "clasica" (modo consola / script): muestra o guarda
-    # ------------------------------------------------------------------
-    def plot_comparison(self, orig: np.ndarray, filt: np.ndarray, fs: int = None,
-                         guardar_como: str = None) -> None:
-        """
-        Grafica la senal original y la filtrada, superpuestas, para
-        comparar el efecto del filtro de promedio movil.
+        ax.fill_between(frecuencias, magnitud, color=self.COLOR_FILL, alpha=0.5)
+        ax.plot(frecuencias, magnitud, color=self.COLOR_ESPEC, linewidth=1.5)
+        
+        self._aplicar_estilo(ax, titulo, "Frecuencia [Hz]", "Magnitud")
+        ax.set_xlim(left=0) 
+        ax.set_ylim(bottom=0)
 
-        Parametros
-        ----------
-        orig : np.ndarray
-            Senal original.
-        filt : np.ndarray
-            Senal filtrada.
-        fs : int, opcional
-            Frecuencia de muestreo, usada para construir el eje de
-            tiempo en segundos. Si no se entrega, el eje x se muestra
-            en numero de muestra.
-        guardar_como : str, opcional
-            Si se entrega una ruta, la figura se guarda en disco en
-            vez de mostrarse en pantalla.
-        """
+    def plot_comparison(self, orig: np.ndarray, filt: np.ndarray, fs: int = None, guardar_como: str = None) -> None:
+        fig = self.crear_figura_comparacion(orig, filt, fs)
         if guardar_como:
-            fig = self.crear_figura_comparacion(orig, filt, fs)
-            fig.savefig(guardar_como, dpi=150)
-            print(f"[SignalPlotter] Grafica guardada en: {guardar_como}")
+            fig.savefig(guardar_como, dpi=300, bbox_inches='tight')
+            print(f"Gráfica guardada exitosamente en: {guardar_como}")
         else:
-            orig = np.asarray(orig).flatten()
-            filt = np.asarray(filt).flatten()
-            if fs:
-                t_orig, t_filt, xlabel = np.arange(len(orig)) / fs, np.arange(len(filt)) / fs, "Tiempo [s]"
-            else:
-                t_orig, t_filt, xlabel = np.arange(len(orig)), np.arange(len(filt)), "Muestra"
-
-            plt.figure(figsize=(10, 4))
-            plt.plot(t_orig, orig, label="Original", alpha=0.7)
-            plt.plot(t_filt, filt, label="Filtrada (promedio movil)", alpha=0.9)
-            plt.title("Comparacion: senal original vs. filtrada")
-            plt.xlabel(xlabel)
-            plt.ylabel("Amplitud")
-            plt.legend()
-            plt.tight_layout()
+            dummy_fig = plt.figure(figsize=(10, 5), dpi=120)
+            dummy_fig.canvas.manager.canvas.figure = fig
+            fig.canvas.manager = dummy_fig.canvas.manager
             plt.show()
 
     def plot_spectrum(self, datos: np.ndarray, fs: int, guardar_como: str = None) -> None:
-        """
-        Grafica el espectro de magnitud (FFT) de la senal.
-
-        Parametros
-        ----------
-        datos : np.ndarray
-            Senal a analizar.
-        fs : int
-            Frecuencia de muestreo en Hz.
-        guardar_como : str, opcional
-            Si se entrega una ruta, la figura se guarda en disco en
-            vez de mostrarse en pantalla.
-        """
+        fig = Figure(figsize=(10, 4), dpi=120)
+        ax = fig.add_subplot(111)
+        self._dibujar_espectro(ax, datos, fs, f"Espectro de Magnitud (fs = {fs} Hz)")
+        fig.tight_layout()
+        
         if guardar_como:
-            fig = self.crear_figura_espectro(datos, fs)
-            fig.savefig(guardar_como, dpi=150)
-            print(f"[SignalPlotter] Grafica guardada en: {guardar_como}")
-            return
-
-        datos = np.asarray(datos).flatten()
-        n = len(datos)
-        if n == 0:
-            print("[SignalPlotter] Aviso: senal vacia, no se puede graficar espectro.")
-            return
-
-        espectro = np.fft.rfft(datos)
-        frecuencias = np.fft.rfftfreq(n, d=1.0 / fs)
-        magnitud = np.abs(espectro) / n
-
-        plt.figure(figsize=(10, 4))
-        plt.plot(frecuencias, magnitud)
-        plt.title(f"Espectro de magnitud (fs = {fs} Hz)")
-        plt.xlabel("Frecuencia [Hz]")
-        plt.ylabel("Magnitud")
-        plt.tight_layout()
-        plt.show()
+            fig.savefig(guardar_como, dpi=300, bbox_inches='tight')
+            print(f"Espectro guardado exitosamente en: {guardar_como}")
+        else:
+            dummy_fig = plt.figure(figsize=(10, 4), dpi=120)
+            dummy_fig.canvas.manager.canvas.figure = fig
+            fig.canvas.manager = dummy_fig.canvas.manager
+            plt.show()
