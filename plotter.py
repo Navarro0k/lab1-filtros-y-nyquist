@@ -1,85 +1,48 @@
 import numpy as np
 from matplotlib.figure import Figure
 
+
 class SignalPlotter:
     def _aplicar_estilo(self, ax, titulo, xlabel, ylabel):
-        ax.set_title(titulo, fontsize=8, fontweight='bold', pad=4)
-        ax.set_xlabel(xlabel, fontsize=7)
-        ax.set_ylabel(ylabel, fontsize=7)
+        ax.set_title(titulo, fontsize=9, fontweight='bold', pad=4)
+        ax.set_xlabel(xlabel, fontsize=8)
+        ax.set_ylabel(ylabel, fontsize=8)
 
-        ax.grid(True, color='#E0E0E0', linestyle=':', linewidth=0.25)
+        ax.grid(True, color='#E0E0E0', linestyle=':', linewidth=0.5)
 
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         ax.spines['left'].set_linewidth(0.5)
         ax.spines['bottom'].set_linewidth(0.5)
 
-        ax.tick_params(labelsize=6, width=0.4, length=2.5)
+        ax.tick_params(labelsize=7, width=0.4, length=2.5)
 
     def crear_figura_comparacion(self, orig: np.ndarray, filt: np.ndarray, fs: int = None) -> Figure:
+        """Grafica la señal original (arriba) y la señal filtrada (abajo) en ejes separados."""
         orig = np.asarray(orig).flatten()
         filt = np.asarray(filt).flatten()
 
         if fs is not None:
-            t = np.arange(len(orig)) / fs
+            t_orig = np.arange(len(orig)) / fs
+            t_filt = np.arange(len(filt)) / fs
             xlabel = "Tiempo [s]"
         else:
-            t = np.arange(len(orig))
+            t_orig = np.arange(len(orig))
+            t_filt = np.arange(len(filt))
             xlabel = "Muestra [n]"
 
-        fig = Figure(figsize=(9, 4), dpi=300)
-        ax = fig.add_subplot(111)
+        # dpi más alto y líneas más finas para que se aprecie el detalle de
+        # la forma de onda al hacer zoom con la barra de herramientas.
+        fig = Figure(figsize=(9.5, 5.6), dpi=150)
 
-        # Líneas ultra finas para máximo detalle visual
-        ax.plot(t, orig, color='#90A4AE', linewidth=0.12, label="Original", zorder=1)
-        ax.plot(t, filt, color='#D84315', linewidth=0.12, alpha=0.7, label="Filtrada", zorder=2)
-
-        self._aplicar_estilo(ax, "Temporal: Original vs Filtrada", xlabel, "Amplitud")
-        ax.legend(fontsize=6, loc='upper right', framealpha=0.8, handlelength=1.2)
-
-        fig.tight_layout(pad=3)
-
-        return fig
-
-    def crear_figura_espectro_comparacion(self, orig: np.ndarray, fs_orig: int, res: np.ndarray, fs_new: int, cumple_nyquist: bool = None) -> Figure:
-        # Altura reducida de 4.5 a 3.5 para que no sature la ventana de Tkinter
-        fig = Figure(figsize=(8, 3.5), dpi=300)
-        
-        estado = ""
-        if cumple_nyquist is not None:
-            if cumple_nyquist is True:
-                estado = " | Nyquist: CUMPLE"
-            else:
-                estado = " | Nyquist: NO CUMPLE"
-                
         ax1 = fig.add_subplot(211)
-        titulo_orig = f"Original (fs = {fs_orig} Hz)"
-        self._dibujar_espectro(ax1, orig, fs_orig, titulo_orig)
+        ax1.plot(t_orig, orig, color='#90A4AE', linewidth=0.35, antialiased=True)
+        self._aplicar_estilo(ax1, "Señal Original (sin filtro)", "", "Amplitud")
 
-        ax2 = fig.add_subplot(212)
-        titulo_res = f"Remuestreado (fs = {fs_new} Hz){estado}"
-        self._dibujar_espectro(ax2, res, fs_new, titulo_res)
+        ax2 = fig.add_subplot(212, sharex=ax1)
+        ax2.plot(t_filt, filt, color='#D84315', linewidth=0.35, antialiased=True)
+        self._aplicar_estilo(ax2, "Señal Filtrada (Media Móvil)", xlabel, "Amplitud")
 
-        # Se aumenta el pad para dar más espacio entre subplots y evitar solapamientos
-        fig.tight_layout(pad=2.2)
-        
+        fig.tight_layout(pad=2.5)
+
         return fig
-
-    def _dibujar_espectro(self, ax, datos: np.ndarray, fs: int, titulo: str):
-        datos = np.asarray(datos).flatten()
-
-        if len(datos) == 0:
-            ax.set_title(titulo + " (Vacía)", fontsize=8)
-            return
-
-        n = len(datos)
-        espectro = np.abs(np.fft.rfft(datos)) / n
-        frecs = np.fft.rfftfreq(n, d=1.0 / fs)
-
-        ax.fill_between(frecs, espectro, color='#BBDEFB', alpha=0.25)
-        ax.plot(frecs, espectro, color='#1565C0', linewidth=0.2)
-
-        self._aplicar_estilo(ax, titulo, "Frecuencia [Hz]", "Magnitud")
-
-        ax.set_xlim(left=0, right=fs / 2)
-        ax.set_ylim(bottom=0)

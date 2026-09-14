@@ -1,16 +1,17 @@
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from lab_controller import LabController
 
 class LabGUI:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Laboratorio DSP")
-        self.root.geometry("800x600")
+        self.root.geometry("900x680")
         self.controller = LabController()
         self.canvas = None
+        self.toolbar = None
 
         # --- Interfaz ---
         frame = tk.Frame(root)
@@ -79,12 +80,23 @@ class LabGUI:
     def tarea_analizar(self):
         try:
             tipo = self.combo.get()
-            parametro = int(self.ent_m.get()) if tipo == "Media Movil" else int(self.ent_fs.get())
-            
+            es_media_movil = (tipo == self.controller.TIPO_MEDIA_MOVIL)
+            parametro = int(self.ent_m.get()) if es_media_movil else int(self.ent_fs.get())
+
             resultado = self.controller.analizar(tipo, parametro)
-            figura = resultado if tipo == "Media Movil" else resultado[0]
-            
-            self.root.after(0, self.dibujar_grafica, figura)
+
+            if es_media_movil:
+                # resultado es la figura con las dos gráficas (original / filtrada)
+                self.root.after(0, self.dibujar_grafica, resultado)
+            else:
+                # resultado es un booleano: si el remuestreo cumple Nyquist
+                cumple = resultado
+                mensaje = (
+                    "Remuestreo completo. Cumple con el criterio de Nyquist."
+                    if cumple else
+                    "Remuestreo completo. NO cumple con Nyquist (habrá aliasing)."
+                )
+                self.root.after(0, messagebox.showinfo, "Nyquist", mensaje)
         except Exception as error:
             self.root.after(0, messagebox.showerror, "Error", str(error))
 
@@ -104,9 +116,21 @@ class LabGUI:
     def dibujar_grafica(self, fig):
         if self.canvas:
             self.canvas.get_tk_widget().destroy()
+        if self.toolbar:
+            self.toolbar.destroy()
+
         self.canvas = FigureCanvasTkAgg(fig, master=self.frame_grafica)
         self.canvas.draw()
-        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        # Importante: la toolbar se crea y se empaqueta ANTES que el canvas.
+        # Si el canvas (fill="both", expand=True) se empaqueta primero,
+        # acapara todo el espacio disponible y la toolbar queda sin lugar
+        # visible, aunque el objeto exista.
+        self.toolbar = NavigationToolbar2Tk(self.canvas, self.frame_grafica, pack_toolbar=False)
+        self.toolbar.update()
+        self.toolbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.canvas.get_tk_widget().pack(side=tk.TOP, fill="both", expand=True)
 
 if __name__ == "__main__":
     root = tk.Tk()

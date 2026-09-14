@@ -49,11 +49,10 @@ class LabController:
             cumple = self.analyzer.check(self.new_fs, self.f_max)
             self.resampleada = self.analyzer.resample(self.original, self.fs, self.new_fs)
             self.hay_resampleada = True
-            
-            fig = self.plotter.crear_figura_espectro_comparacion(
-                self.original, self.fs, self.resampleada, self.new_fs, cumple_nyquist=cumple
-            )
-            return fig, cumple
+
+            # No se genera gráfica para Nyquist: solo importa poder reproducir
+            # el audio remuestreado. Se devuelve si cumple el criterio.
+            return cumple
 
     def reproducir_original(self):
         if self.hay_original:
