@@ -1,0 +1,49 @@
+classDiagram
+    class LabGUI {
+        -controller: LabController
+        +hilo_grabar()
+        +hilo_analizar()
+        +hilo_reproducir_orig()
+        +hilo_reproducir_filt()
+        +dibujar_grafica(fig)
+    }
+
+    class LabController {
+        -io: AudioIO
+        -filtro: MovingAverageFilter
+        -analyzer: NyquistAnalyzer
+        -plotter: SignalPlotter
+        -fs: int
+        -f_max: float
+        -new_fs: int
+        +grabar(duration) bool
+        +analizar(tipo, param)
+        +reproducir_original()
+        +reproducir_filtrado(tipo)
+    }
+
+    class AudioIO {
+        -channels: int
+        +record(duration, fs) ndarray
+        +play(datos, fs)
+    }
+
+    class MovingAverageFilter {
+        -M: int
+        +apply(x) ndarray
+    }
+
+    class NyquistAnalyzer {
+        +check(fs, f_max) bool
+        +resample(x, fs, new_fs) list
+    }
+
+    class SignalPlotter {
+        +crear_figura_comparacion(orig, filt, fs) Figure
+    }
+
+    LabGUI --> LabController : usa
+    LabController --> AudioIO : compone
+    LabController --> MovingAverageFilter : compone
+    LabController --> NyquistAnalyzer : compone
+    LabController --> SignalPlotter : compone
